@@ -38,7 +38,7 @@ python-docx>=1.0.0          # markdown_to_docx_bytes()
 streamlit-lexical-extended  # no pin — latest; requires Streamlit 1.51+
 
 # --- MCP (optional, app degrades gracefully) --------------
-mcp>=1.0.0                  # mcp_integration.py — stdio + HTTP + SSE transports
+mcp<2.0.0 #mcp>=1.0.0                  # mcp_integration.py — stdio + HTTP + SSE transports
 
 # --- Timezone data (needed on Windows / slim Docker) ------
 tzdata
