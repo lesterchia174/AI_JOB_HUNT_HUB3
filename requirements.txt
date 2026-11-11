@@ -1,0 +1,28 @@
+# requirements-dev.txt
+#-r requirements.txt
+
+# Step 2 — Outbox agent (not yet imported)
+#rapidfuzz>=3.6.0
+#msal>=1.28.0
+#msal-streamlit-authentication>=1.0.6
+
+
+
+streamlit>=1.40
+pandas
+sqlalchemy>=2.0
+psycopg[binary]>=3.1
+python-dotenv
+groq
+openai
+langchain-groq
+langchain-openai
+requests
+beautifulsoup4
+PyPDF2
+python-docx
+reportlab
+sentence-transformers
+
+# Optional — comment out if Streamlit < 1.51 or pip is fighting you
+# streamlit-lexical-extended
