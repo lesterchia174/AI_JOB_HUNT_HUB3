@@ -27,8 +27,13 @@ from typing import Any, Optional
 try:
     from mcp import ClientSession, StdioServerParameters, types
     from mcp.client.stdio import stdio_client
-    from mcp.client.streamable_http import streamablehttp_client
     from mcp.client.sse import sse_client
+    
+    # Handle the mcp SDK v2 renaming of streamablehttp_client
+    try:
+        from mcp.client.streamable_http import streamablehttp_client
+    except ImportError:
+        from mcp.client.streamable_http import streamable_http_client as streamablehttp_client
 
     MCP_AVAILABLE = True
     MCP_IMPORT_ERROR = ""
