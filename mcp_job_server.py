@@ -2,7 +2,7 @@
 mcp_job_server.py — Minimal MCP server for the AI Job Hunt OS.
 """
 from mcp.server.fastmcp import FastMCP
-import requests
+import cloudscraper  # Changed from requests
 from bs4 import BeautifulSoup
 
 mcp = FastMCP("job-scraper")
@@ -12,15 +12,13 @@ def scrape_job_url(url: str) -> dict:
     """
     Scrape a job posting URL and return company, role, and description.
     """
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        )
-    }
     try:
-        resp = requests.get(url, headers=headers, timeout=10)
+        # Create a scraper that mimics a real browser to bypass Cloudflare
+        scraper = cloudscraper.create_scraper(
+            browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False}
+        )
+        
+        resp = scraper.get(url, timeout=15)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -69,14 +67,7 @@ def search_jobs(keywords: str, location: str = "Singapore") -> dict:
                 "location": location,
                 "url": "https://example.com/jobs/123",
                 "salary": "SGD 8,000 - 12,000"
-            },
-            {
-                "title": f"{keywords.title()} Lead",
-                "company": "Sample Pte Ltd",
-                "location": location,
-                "url": "https://example.com/jobs/456",
-                "salary": "SGD 10,000 - 14,000"
-            },
+            }
         ],
     }
 
