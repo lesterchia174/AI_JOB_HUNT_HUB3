@@ -42,3 +42,4 @@ streamlit-lexical-extended  # no pin — latest; requires Streamlit 1.51+
 mcp>=1.0.0,<2.0.0
 # --- Timezone data (needed on Windows / slim Docker) ------
 tzdata
+cloudscraper
