@@ -1,28 +1,44 @@
-# requirements-dev.txt
-#-r requirements.txt
+# ============================================================
+# AI Job Hunt OS — Python dependencies
+# Install with:  pip install -r requirements.txt
+# ============================================================
 
-# Step 2 — Outbox agent (not yet imported)
-#rapidfuzz>=3.6.0
-#msal>=1.28.0
-#msal-streamlit-authentication>=1.0.6
+# --- Core web framework -----------------------------------
+streamlit>=1.51.0           # code requires 1.51+ for streamlit-lexical-extended
 
+# --- Data & HTTP ------------------------------------------
+pandas>=2.0.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
 
+# --- Environment / config ---------------------------------
+python-dotenv>=1.0.0
 
-streamlit>=1.40
-pandas
-sqlalchemy>=2.0
-psycopg[binary]>=3.1
-python-dotenv
-groq
-openai
-langchain-groq
-langchain-openai
-requests
-beautifulsoup4
-PyPDF2
-python-docx
-reportlab
-sentence-transformers
+# --- Database (Supabase / Postgres via psycopg v3) --------
+SQLAlchemy>=2.0.0
+psycopg[binary]>=3.1.0
 
-# Optional — comment out if Streamlit < 1.51 or pip is fighting you
-# streamlit-lexical-extended
+# --- LLM providers ----------------------------------------
+groq>=0.9.0                 # direct Groq client (groq_client)
+openai>=1.0.0               # AI Singapore / Sea-Lion OpenAI-compatible client
+
+# --- LangChain LLM wrappers -------------------------------
+langchain-groq>=0.1.0       # used by load_llm_for() for Groq
+langchain-openai>=0.1.0     # used by load_llm_for() for Sea-Lion
+
+# --- Embeddings / semantic match score --------------------
+sentence-transformers>=2.2.0   # pulls in torch, transformers, etc.
+
+# --- PDF / DOCX reading & export --------------------------
+PyPDF2>=3.0.0               # extract_pdf_text()
+reportlab>=4.0.0            # markdown_to_pdf_bytes()
+python-docx>=1.0.0          # markdown_to_docx_bytes()
+
+# --- Rich text editor (optional, app degrades gracefully) -
+streamlit-lexical-extended  # no pin — latest; requires Streamlit 1.51+
+
+# --- MCP (optional, app degrades gracefully) --------------
+mcp>=1.0.0                  # mcp_integration.py — stdio + HTTP + SSE transports
+
+# --- Timezone data (needed on Windows / slim Docker) ------
+tzdata
