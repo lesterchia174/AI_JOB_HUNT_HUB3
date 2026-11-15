@@ -1,5 +1,5 @@
 """
-AI Job Hunt OS — Test Build v4.3.0.0 (Supabase Edition)
+AI Job Hunt OS — Test Build v4.3.1.0 (Supabase Edition)
 Streamlit app that tracks job applications and uses AI (Groq + AI Singapore)
 to tailor resumes and generate cover letters.
 
@@ -7,6 +7,7 @@ Now with:
 - Prompt management: per-operation system prompts (global defaults) +
   per-application overrides, editable from Settings and from Edit & Export
 - Edit & Export "Regenerate with prompt" panel (preview -> apply)
+- Placeholder-based user prompts to keep UI clean and avoid token waste
 - "original_resume_text" column so regeneration can start from the raw CV
 - Quick Import from Job Link inside the existing "New Application" view
 - "Edit & Export" view with a rich text (Markdown) editor
@@ -691,27 +692,23 @@ def call_ai_singapore_direct(prompt: str, operation: str = "direct_test", system
 
 def tailor_resume(resume_text: str, job_description: str,
                   system_prompt: str | None = None) -> str:
-    # --- PROMPT FEATURE --- instructions now live in the system prompt
     user_prompt = DEFAULT_USER_TEMPLATES["tailor_resume"].format(
         job_description=job_description,
         resume_text=resume_text,
     )
     return call_llm(user_prompt, operation="tailor_resume",
                     system_prompt=system_prompt)
-    # --- END PROMPT FEATURE ---
 
 
 def generate_cover_letter(resume_text: str, job_description: str,
                           company: str, role: str,
                           system_prompt: str | None = None) -> str:
-    # --- PROMPT FEATURE ---
     user_prompt = DEFAULT_USER_TEMPLATES["cover_letter"].format(
         role=role, company=company,
         job_description=job_description, resume_text=resume_text,
     )
     return call_llm(user_prompt, operation="cover_letter",
                     system_prompt=system_prompt)
-    # --- END PROMPT FEATURE ---
 
 
 def extract_pdf_text(uploaded_file) -> str:
@@ -1547,30 +1544,15 @@ def _record_export(app_id: int, cfg: dict, filename: str, doc_number: int, text:
 
 # --- PROMPT FEATURE --- default user prompt for a given doc kind
 def _default_user_prompt(kind: str, app: dict) -> str:
-    jd = app.get("job_description") or ""
+    """Returns the user prompt TEMPLATE with placeholders, not the full text."""
     if kind == "Resume":
-        # Prefer the raw upload so "regenerate" starts fresh
-        resume = (
-            app.get("original_resume_text")
-            or app.get("resume_text")
-            or ""
-        )
-        return DEFAULT_USER_TEMPLATES["tailor_resume"].format(
-            job_description=jd, resume_text=resume,
-        )
-    resume = app.get("resume_text") or ""
-    return DEFAULT_USER_TEMPLATES["cover_letter"].format(
-        role=app.get("role") or "",
-        company=app.get("company") or "",
-        job_description=jd,
-        resume_text=resume,
-    )
+        return DEFAULT_USER_TEMPLATES["tailor_resume"]
+    return DEFAULT_USER_TEMPLATES["cover_letter"]
 
 
 def render_regenerate_panel(app: dict, kind: str, cfg: dict,
                             doc_number: int, filename: str) -> None:
-    """Prompt-driven regeneration inside Edit & Export.
-    Preview -> Apply, never silently overwrites the saved document."""
+    """Prompt-driven regeneration inside Edit & Export."""
     op = cfg["operation"]
     _, _, model_label = get_active_model()
     app_id = app["id"]
@@ -1582,32 +1564,20 @@ def render_regenerate_panel(app: dict, kind: str, cfg: dict,
     default_sys = saved.get("system") or global_default_sys
     default_user = saved.get("user") or _default_user_prompt(kind, app)
 
-    with st.expander("🧠 Regenerate with prompt", expanded=False):
+    with st.expander("🧠 Regenerate with custom prompt", expanded=False):
         st.caption(f"Model: **{model_label}** · Operation: `{op}`")
-
-        # --- Source data preview (what the LLM will actually see) ---
-        with st.container(border=True):
-            st.markdown("**Source data used**")
-            jd = app.get("job_description") or ""
-            source_resume = app.get(cfg["source_field"]) or app.get("resume_text") or ""
-            cj, cr = st.columns(2)
-            with cj:
-                with st.expander(f"📋 Job description ({len(jd):,} chars)"):
-                    st.text(jd[:3000] if jd else "(no job description saved)")
-            with cr:
-                with st.expander(f"📄 Source resume ({len(source_resume):,} chars)"):
-                    st.text(source_resume[:3000] if source_resume else "(no resume saved)")
+        st.caption("Use `{job_description}` and `{resume_text}` to auto-inject database data.")
 
         sys_prompt = st.text_area(
-            "System prompt",
+            "System prompt (Rules & Persona)",
             value=default_sys,
-            height=170,
+            height=120,
             key=f"regen_sys_{app_id}_{op}",
         )
         user_prompt = st.text_area(
-            "User prompt",
+            "User prompt (Task & Data placeholders)",
             value=default_user,
-            height=240,
+            height=150,
             key=f"regen_user_{app_id}_{op}",
         )
 
@@ -1619,7 +1589,7 @@ def render_regenerate_panel(app: dict, kind: str, cfg: dict,
             )
         with b2:
             save_prompt = st.button(
-                "💾 Save prompt for this app",
+                "💾 Save this prompt",
                 key=f"regen_save_{app_id}_{op}",
                 use_container_width=True,
             )
@@ -1633,7 +1603,6 @@ def render_regenerate_panel(app: dict, kind: str, cfg: dict,
         if use_global:
             (st.session_state.setdefault("app_prompts", {})
                 .setdefault(app_id, {}).pop(op, None))
-            # Clear widget state so the default repopulates on next render
             st.session_state.pop(f"regen_sys_{app_id}_{op}", None)
             st.session_state.pop(f"regen_user_{app_id}_{op}", None)
             st.success("Override cleared — using global default.")
@@ -1648,21 +1617,40 @@ def render_regenerate_panel(app: dict, kind: str, cfg: dict,
             st.success("Saved for this application.")
 
         if regenerate:
+            # --- INJECT DATABASE DATA HERE ---
+            jd = app.get("job_description") or ""
+            # Use original_resume_text for resume, resume_text for cover letter
+            source_resume = app.get(cfg["source_field"]) or app.get("resume_text") or ""
+            
+            try:
+                # Replace placeholders with actual DB text
+                final_user_prompt = user_prompt.format(
+                    job_description=jd,
+                    resume_text=source_resume,
+                    role=app.get("role", ""),
+                    company=app.get("company", "")
+                )
+            except KeyError as e:
+                st.error(f"Prompt error: Unknown placeholder {e}. Only use {{job_description}}, {{resume_text}}, {{role}}, or {{company}}.")
+                return
+
             with st.spinner(f"Regenerating {kind.lower()} with {model_label}..."):
-                result = call_llm(user_prompt, operation=op, system_prompt=sys_prompt)
+                result = call_llm(final_user_prompt, operation=op, system_prompt=sys_prompt)
+            
             if result.startswith("⚠️"):
                 st.error(result)
             else:
                 st.session_state[f"regen_preview_{app_id}_{op}"] = result
                 st.success("Draft ready. Review below and apply.")
 
+        # --- PREVIEW SECTION ---
         preview_key = f"regen_preview_{app_id}_{op}"
         if preview_key in st.session_state:
             preview = st.session_state[preview_key]
             with st.container(border=True):
                 st.markdown("**Preview (not saved yet)**")
                 st.text_area(
-                    "Draft", preview, height=320, disabled=True,
+                    "Draft", preview, height=280, disabled=True,
                     key=f"regen_preview_view_{app_id}_{op}",
                 )
                 ca, cb = st.columns(2)
@@ -1670,7 +1658,6 @@ def render_regenerate_panel(app: dict, kind: str, cfg: dict,
                     if st.button("✅ Apply to editor", key=f"regen_apply_{app_id}_{op}",
                                  use_container_width=True):
                         _record_export(app_id, cfg, filename, doc_number, preview)
-                        # Force the rich editor to reseed with the new value
                         lex_key = f"lexical_{app_id}_{cfg['text_field']}"
                         st.session_state.pop(lex_key, None)
                         st.session_state.get("_lexical_seeded", set()).discard(lex_key)
