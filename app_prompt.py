@@ -1,13 +1,12 @@
 """
-AI Job Hunt OS — Test Build v4.3.1.0 (Supabase Edition)
+AI Job Hunt OS — Test Build v4.3.2.0 (Supabase Edition)
 Streamlit app that tracks job applications and uses AI (Groq + AI Singapore)
 to tailor resumes and generate cover letters.
 
 Now with:
 - Prompt management: per-operation system prompts (global defaults) +
   per-application overrides, editable from Settings and from Edit & Export
-- Edit & Export "Regenerate with prompt" panel (preview -> apply)
-- Placeholder-based user prompts to keep UI clean and avoid token waste
+- Edit & Export "Regenerate" panel uses "Additional Instructions" to keep it simple
 - "original_resume_text" column so regeneration can start from the raw CV
 - Quick Import from Job Link inside the existing "New Application" view
 - "Edit & Export" view with a rich text (Markdown) editor
@@ -1562,11 +1561,10 @@ def render_regenerate_panel(app: dict, kind: str, cfg: dict,
         or DEFAULT_SYSTEM_PROMPTS[op]
 
     default_sys = saved.get("system") or global_default_sys
-    default_user = saved.get("user") or _default_user_prompt(kind, app)
+    default_instructions = saved.get("user") or ""
 
     with st.expander("🧠 Regenerate with custom prompt", expanded=False):
         st.caption(f"Model: **{model_label}** · Operation: `{op}`")
-        st.caption("Use `{job_description}` and `{resume_text}` to auto-inject database data.")
 
         sys_prompt = st.text_area(
             "System prompt (Rules & Persona)",
@@ -1574,12 +1572,17 @@ def render_regenerate_panel(app: dict, kind: str, cfg: dict,
             height=120,
             key=f"regen_sys_{app_id}_{op}",
         )
-        user_prompt = st.text_area(
-            "User prompt (Task & Data placeholders)",
-            value=default_user,
-            height=150,
+        
+        # --- NEW SIMPLIFIED USER PROMPT UI ---
+        custom_instructions = st.text_area(
+            "Additional Instructions (Optional)",
+            value=default_instructions,
+            placeholder="e.g., Please remove the page number and align the structure...",
+            height=100,
             key=f"regen_user_{app_id}_{op}",
         )
+        st.caption("The Job Description and your Resume are automatically included in the background.")
+        # -------------------------------------
 
         b1, b2, b3 = st.columns(3)
         with b1:
@@ -1612,31 +1615,36 @@ def render_regenerate_panel(app: dict, kind: str, cfg: dict,
             (st.session_state.setdefault("app_prompts", {})
                 .setdefault(app_id, {})[op]) = {
                     "system": sys_prompt,
-                    "user": user_prompt,
+                    "user": custom_instructions,
                 }
             st.success("Saved for this application.")
 
         if regenerate:
-            # --- INJECT DATABASE DATA HERE ---
+            # --- INJECT DATABASE DATA IN THE BACKGROUND ---
             jd = app.get("job_description") or ""
-            # Use original_resume_text for resume, resume_text for cover letter
             source_resume = app.get(cfg["source_field"]) or app.get("resume_text") or ""
             
-            try:
-                # Replace placeholders with actual DB text
-                final_user_prompt = user_prompt.format(
-                    job_description=jd,
-                    resume_text=source_resume,
-                    role=app.get("role", ""),
-                    company=app.get("company", "")
+            # 1. Get the base template with data
+            if op == "tailor_resume":
+                base_prompt = DEFAULT_USER_TEMPLATES["tailor_resume"].format(
+                    job_description=jd, resume_text=source_resume
                 )
-            except KeyError as e:
-                st.error(f"Prompt error: Unknown placeholder {e}. Only use {{job_description}}, {{resume_text}}, {{role}}, or {{company}}.")
-                return
+            else:
+                base_prompt = DEFAULT_USER_TEMPLATES["cover_letter"].format(
+                    job_description=jd, resume_text=source_resume,
+                    role=app.get("role", ""), company=app.get("company", "")
+                )
+            
+            # 2. Prepend the user's custom instructions if they provided any
+            if custom_instructions.strip():
+                final_user_prompt = f"ADDITIONAL INSTRUCTIONS:\n{custom_instructions.strip()}\n\n{base_prompt}"
+            else:
+                final_user_prompt = base_prompt
 
             with st.spinner(f"Regenerating {kind.lower()} with {model_label}..."):
                 result = call_llm(final_user_prompt, operation=op, system_prompt=sys_prompt)
-            
+            # ----------------------------------------------
+
             if result.startswith("⚠️"):
                 st.error(result)
             else:
