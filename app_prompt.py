@@ -1,12 +1,12 @@
 """
-AI Job Hunt OS — Test Build v4.3.2.0 (Supabase Edition)
+AI Job Hunt OS — Test Build v4.3.3.0 (Supabase Edition)
 Streamlit app that tracks job applications and uses AI (Groq + AI Singapore)
 to tailor resumes and generate cover letters.
 
 Now with:
 - Prompt management: per-operation system prompts (global defaults) +
   per-application overrides, editable from Settings and from Edit & Export
-- Edit & Export "Regenerate" panel uses "Additional Instructions" to keep it simple
+- Edit & Export "Regenerate" panel uses "User prompt" for instructions
 - "original_resume_text" column so regeneration can start from the raw CV
 - Quick Import from Job Link inside the existing "New Application" view
 - "Edit & Export" view with a rich text (Markdown) editor
@@ -1561,7 +1561,7 @@ def render_regenerate_panel(app: dict, kind: str, cfg: dict,
         or DEFAULT_SYSTEM_PROMPTS[op]
 
     default_sys = saved.get("system") or global_default_sys
-    default_instructions = saved.get("user") or ""
+    default_user = saved.get("user") or ""
 
     with st.expander("🧠 Regenerate with custom prompt", expanded=False):
         st.caption(f"Model: **{model_label}** · Operation: `{op}`")
@@ -1573,17 +1573,15 @@ def render_regenerate_panel(app: dict, kind: str, cfg: dict,
             key=f"regen_sys_{app_id}_{op}",
         )
         
-        # --- NEW SIMPLIFIED USER PROMPT UI ---
-        custom_instructions = st.text_area(
-            "Additional Instructions (Optional)",
-            value=default_instructions,
+        user_prompt = st.text_area(
+            "User prompt",
+            value=default_user,
             placeholder="e.g., Please remove the page number and align the structure...",
             height=100,
             key=f"regen_user_{app_id}_{op}",
         )
-        st.caption("The Job Description and your Resume are automatically included in the background.")
-        # -------------------------------------
-
+        st.caption("Note: The Job Description and your Resume are automatically injected into this prompt in the background.")
+        
         b1, b2, b3 = st.columns(3)
         with b1:
             regenerate = st.button(
@@ -1615,7 +1613,7 @@ def render_regenerate_panel(app: dict, kind: str, cfg: dict,
             (st.session_state.setdefault("app_prompts", {})
                 .setdefault(app_id, {})[op]) = {
                     "system": sys_prompt,
-                    "user": custom_instructions,
+                    "user": user_prompt,
                 }
             st.success("Saved for this application.")
 
@@ -1636,8 +1634,8 @@ def render_regenerate_panel(app: dict, kind: str, cfg: dict,
                 )
             
             # 2. Prepend the user's custom instructions if they provided any
-            if custom_instructions.strip():
-                final_user_prompt = f"ADDITIONAL INSTRUCTIONS:\n{custom_instructions.strip()}\n\n{base_prompt}"
+            if user_prompt.strip():
+                final_user_prompt = f"USER INSTRUCTIONS:\n{user_prompt.strip()}\n\n{base_prompt}"
             else:
                 final_user_prompt = base_prompt
 
