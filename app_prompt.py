@@ -1253,8 +1253,8 @@ def render_sidebar():
         <div class="profile-container">
             <img src="https://ui-avatars.com/api/?name=Lester&background=0D8ABC&color=fff" class="profile-pic" alt="Lester">
             <div class="profile-info">
-                <span class="profile-name">Lester</span>
-                <span class="profile-role">Software Engineer</span>
+                <span class="profile-name">Lester </span>
+                <span class="profile-role">Project Management</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
